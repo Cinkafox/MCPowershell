@@ -2,6 +2,16 @@ $WebClient = New-Object System.Net.WebClient
 [System.Reflection.Assembly]::LoadWithPartialName('System.IO.Compression.FileSystem')
 [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding("cp866")
 $GB = "4"
+if(Test-Path "launcher_profiles1.json" -PathType Leaf){
+    Write-Host "eeeee"
+    #Remove-Item -Path "launcher_profiles.json"
+    #Rename-Item -Path "launcher_profiles1.json" -NewName "launcher_profiles.json" 
+}
+function test {
+    $tt = ReadJsonMine -version "1.12.2-forge-14.23.5.2860"
+    Write-Host "SSsss"
+    $out = ($tt | ConvertTo-Json -depth 100 | Out-File "abaaa1.json")
+}
 function run {
     $launcher_profiles = jsonFromFile -PATH "launcher_profiles.json"
     $nick = $launcher_profiles.nick
@@ -69,7 +79,7 @@ function startMine {
         $nick
     )
     if(!(Test-Path "launcher_profiles.json" -PathType Leaf)){
-        '{"profiles":{}}' | Out-File "launcher_profiles.json"
+        '{"Nick":"Tempo","profiles":{}}' | Out-File "launcher_profiles.json"
     }
     Write-Debug $nick
     $json = ReadJsonMine -version $version
@@ -94,7 +104,7 @@ function DownloadJava {
         }
         17 {
             $url="https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_windows-x64_bin.zip"
-            $path = "jdk-17.0.2+8"
+            $path = "jdk-17.0.2"
         }
         Default {
             $url="https://download.bell-sw.com/java/8u332+9/bellsoft-jre8u332+9-windows-amd64.zip" 
@@ -116,24 +126,44 @@ function ReadJsonMine {
         $version
     )
     $launcher_profiles = jsonFromFile -PATH "launcher_profiles.json"
-    $json
+    $jsonym
     if(!($launcher_profiles.profiles.$version)){
-        $url = getUrl -version $version
-        if($url -eq "nil"){return "Version not found!"}
-        $json = jsonFromUrl -url $url
-        $bcg = [PSCustomObject]@{
-            lastVersionId = $json.id
-            name = $json.id
+        $DBPATH = "versions\"+$version+"\"+$version+".json"
+        if((Test-Path $DBPATH -PathType Leaf)){
+            $jsonym = jsonFromFile -PATH $DBPATH
+            $bcg = [PSCustomObject]@{
+                lastVersionId = $jsonym.id
+                name = $jsonym.id
+            }
+            $launcher_profiles.profiles | Add-Member -MemberType NoteProperty -Name $version -Value $bcg
+            $launcher_profiles | ConvertTo-Json -depth 100 | Out-File "launcher_profiles1.json"
+        }else{
+            $url = getUrl -version $version
+            if($url -eq "nil"){return "Version not found!"}
+            $jsonym = jsonFromUrl -url $url
+            $bcg = [PSCustomObject]@{
+                lastVersionId = $jsonym.id
+                name = $jsonym.id
+            }
+            $launcher_profiles.profiles | Add-Member -MemberType NoteProperty -Name $version -Value $bcg
+            $launcher_profiles | ConvertTo-Json -depth 100 | Out-File "launcher_profiles.json"
         }
-        $launcher_profiles.profiles | Add-Member -MemberType NoteProperty -Name $version -Value $bcg
-        $launcher_profiles | ConvertTo-Json -depth 100 | Out-File "launcher_profiles.json"
-        
     }else{
-        Write-Host "Reading profile"
         $vid = $launcher_profiles.profiles.$version.lastVersionId
-        $json = jsonFromFile -PATH ("versions\" + $vid + "\" + $vid + ".json")
+        $jsonym = jsonFromFile -PATH ("versions\" + $vid + "\" + $vid + ".json")
     }
-    return $json
+    if($null -ne $jsonym.inheritsFrom){
+        $mjson = (ReadJsonMine -version $jsonym.inheritsFrom)[1]
+        if($mjson -eq "Version not found!"){return "Version not found!"}
+        $tmsq = init -json $mjson -nick "nil"
+        $mjson.id = $jsonym.id
+        $mjson.mainClass = $jsonym.mainClass
+        $mjson.minecraftArguments = $jsonym.minecraftArguments
+        $mjson.libraries = $mjson.libraries + $jsonym.libraries
+        $jsonym = $mjson
+    }
+
+    return $jsonym
 }
 function init {
     param (
@@ -158,6 +188,12 @@ function init {
                 $PATH = "libraries\"+$lib.downloads.classifiers.'natives-windows'.path
                 $URL = $lib.downloads.classifiers.'natives-windows'.url
                 $IsNative = $true
+            }
+        }else{
+            if($lib.url){
+                $splited = $lib.name -split ":"
+                $PATH = "libraries\" + ($splited[0] -replace ".","\") + "\" + $splited[1] + "\" + $splited[2] + "\" + $splited[1] + "-" + $splited[2] + ".jar"
+                $URL = $lib.url + ($splited[0] -replace ".","/") + "/" + $splited[1] + "/" + $splited[2] + "/" + $splited[1] + "-" + $splited[2] + ".jar"
             }
         }
         if(!(Test-Path $PATH -PathType Leaf)){
@@ -270,3 +306,4 @@ function jsonFromUrl {
     return (ConvertFrom-Json -InputObject $response.Content)
 }
 run
+#test
