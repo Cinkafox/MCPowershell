@@ -2,16 +2,20 @@ $WebClient = New-Object System.Net.WebClient
 [System.Reflection.Assembly]::LoadWithPartialName('System.IO.Compression.FileSystem')
 [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding("cp866")
 $GB = "4"
-if(Test-Path "launcher_profiles1.json" -PathType Leaf){
-    Write-Host "eeeee"
-    #Remove-Item -Path "launcher_profiles.json"
-    #Rename-Item -Path "launcher_profiles1.json" -NewName "launcher_profiles.json" 
+
+ if(!(Test-Path "launcher_profiles.json" -PathType Leaf)){
+        '{"Nick":"Tempo","profiles":{}}' | Out-File "launcher_profiles.json"
 }
-function test {
-    $tt = ReadJsonMine -version "1.12.2-forge-14.23.5.2860"
-    Write-Host "SSsss"
-    $out = ($tt | ConvertTo-Json -depth 100 | Out-File "abaaa1.json")
+
+function test{
+    $APATH = "assets\indexes\1.12.json"
+    Write-Host $APATH
+    
+    $assets = (jsonFromFile -PATH $APATH)
+    $sass = $assets.objects | Get-Member -MemberType NoteProperty
+    Write-Host ($sass.Length)
 }
+
 function run {
     $launcher_profiles = jsonFromFile -PATH "launcher_profiles.json"
     $nick = $launcher_profiles.nick
@@ -78,17 +82,21 @@ function startMine {
         $version,
         $nick
     )
-    if(!(Test-Path "launcher_profiles.json" -PathType Leaf)){
-        '{"Nick":"Tempo","profiles":{}}' | Out-File "launcher_profiles.json"
-    }
     Write-Debug $nick
     $json = ReadJsonMine -version $version
     $out = (init -json $json -nick $nick)
-    $JAVAPATHBIN = DownloadJava -version $json.javaVersion.majorVersion
+    $JAVAPATHBIN = ""
+    try {
+        Write-Host(java.exe -version)
+    }
+    catch {
+        $JAVAPATHBIN = DownloadJava -version $json.javaVersion.majorVersion
+    }
     Clear-Host
     $vsq = [string]$JAVAPATHBIN+$out
     # Write-Host $vsq
-    cmd /c $vsq
+    # cmd /c $vsq
+    $vsq | Out-File -FilePath "./start.cmd" -Encoding oem
 }
 
 function DownloadJava {
@@ -126,6 +134,7 @@ function ReadJsonMine {
         $version
     )
     $launcher_profiles = jsonFromFile -PATH "launcher_profiles.json"
+
     $jsonym
     if(!($launcher_profiles.profiles.$version)){
         $DBPATH = "versions\"+$version+"\"+$version+".json"
@@ -230,17 +239,35 @@ function init {
         $WebClient.DownloadFile($json.assetIndex.url,$APATH)
     }
     $assets = (jsonFromFile -PATH $APATH)
-    
-    $assets.objects | Get-Member -MemberType NoteProperty | ForEach-Object {
+    $arrassets = $assets.objects | Get-Member -MemberType NoteProperty
+    $ch = 0
+    $arrassets | ForEach-Object {
         $key = $_.Name
         $hash = $assets.objects.$key.hash
         $PATHASH = $hash.ToCharArray()[0]+$hash.ToCharArray()[1]+"/"+$hash
         $URL = "https://resources.download.minecraft.net/" + $PATHASH
         $PATH = "assets\objects\"+$PATHASH
         if(!(Test-Path $PATH -PathType Leaf)){
+            Clear-Host
+            Write-Host "--------------------------------------------"
+            Write-Host $URL
+            Write-Host $PATH
+            Write-Host "--------------------------------------------"
+            $load = "["
+            for ($i = 1; $i -lt 44; $i++) {
+                $sat = ($ch / $arrassets.Length) * 44
+                if ($sat -lt $i) {
+                    $load = $load + " "
+                }
+                else {
+                    $load = $load + "="
+                }
+            }
+            Write-Host ($load + "]")
             New-Item -Path $PATH -ItemType File -Force
             $WebClient.DownloadFile($URL,$PATH)
         }
+        $ch++
     }
 
     $clientpath = "versions\"+ $json.id + "\" + $json.id +".jar"
@@ -266,7 +293,7 @@ function init {
     }
     $args = $args.Replace('${auth_player_name}',$nick)
     $args = $args.Replace('${version_name}',$json.id)
-    $args = $args.Replace('${game_directory}',$MPath)
+    $args = $args.Replace('${game_directory}',"./")
     $args = $args.Replace('${assets_root}',$MPath+"\assets")
     $args = $args.Replace('${assets_index_name}',$json.assetIndex.id)
     $args = $args.Replace('${auth_uuid}',"123456789123456789123456789")
